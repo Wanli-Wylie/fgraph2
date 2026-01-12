@@ -97,13 +97,13 @@ class ErrorNode(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 # forward-declare Node for type checking in pydantic models
-Node = Annotated[Union["TextBlock", "DefineNode", "FunctionDefineNode", "IncludeNode", "UnDefNode", "PragmaNode", "ErrorNode", "ConditionalGroup"], Field(discriminator="kind")]
+PreprocessorNode = Annotated[Union["TextBlock", "DefineNode", "FunctionDefineNode", "IncludeNode", "UnDefNode", "PragmaNode", "ErrorNode", "ConditionalGroup"], Field(discriminator="kind")]
 
 class ConditionalBranch(BaseModel):
     """Represents a branch of #if / #ifdef / #ifndef / #elif"""
     kind: Literal["if", "ifdef", "ifndef", "elif"]
     condition: str
-    body: list[Node]
+    body: list[PreprocessorNode]
     raw: str  # '#if CONDITION'
     span: SourceSpan
     model_config = ConfigDict(frozen=True)
@@ -119,7 +119,7 @@ class ConditionalGroup(BaseModel):
     kind: Literal["conditional_group"] = "conditional_group"
     entry: ConditionalBranch
     elifs: Optional[list[ConditionalBranch]] = None
-    else_body: Optional[list[Node]] = None
+    else_body: Optional[list[PreprocessorNode]] = None
     else_raw: Optional[str] = None
     endif_raw: str = "#endif"
 
@@ -134,7 +134,7 @@ class FileRoot(BaseModel):
     of the original file.
     """
     path: str
-    items: list[Node]
+    items: list[PreprocessorNode]
 
     span: SourceSpan
     model_config = ConfigDict(frozen=True)

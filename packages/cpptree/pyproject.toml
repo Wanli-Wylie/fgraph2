@@ -14,12 +14,13 @@ dependencies = [
     "fgraphutils",
     "ipykernel"
 ]
+[dependency-groups]
+dev = ["pytest"]
 
-
-[project.optional-dependencies]
-dev = [
-    "pytest"
-]
+# [project.optional-dependencies]
+# dev = [
+#     "pytest"
+# ]
 
 [build-system]
 requires = ["uv_build>=0.9.24,<0.10.0"]
