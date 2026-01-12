@@ -1,0 +1,8 @@
+MODULE array
+    IMPLICIT NONE
+
+    INTEGER, PARAMETER :: N = 10
+    INTEGER, DIMENSION(N) :: A
+    INTEGER :: B(N)
+    INTEGER :: C(:)
+END MODULE array

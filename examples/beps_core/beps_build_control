@@ -1,0 +1,56 @@
+#!/bin/csh -f
+#Created by J.Wang
+#Email: wangjun@nju.edu.cn
+
+set curdir = `pwd`
+set case   = `basename $curdir`
+cp usr_beps/* obj    #copy user modified subroutine into obj file
+
+# enter obj for building
+cd obj
+ls *F90 > Srcfiles
+#make clean
+make
+cp beps ..
+cd ..
+
+# setting namelists for beps run
+set inputdata = $curdir/../../inputdata
+set outdir    = $curdir/../../out/$case
+#set meteodata = $curdir/../../inputdata/meteo
+cat >! beps.stdin << EOF
+
+&NLS
+   nlat           = 200
+   nlon           = 200
+   nscale         = 0            !! 0 for global simulation, 1 for site simulation
+   calendar       = "GREGORIAN"  !! Valid in "GREGORIAN" and "NO_LEAP"
+   icdate         = 20190101
+   icsec          = 0            !! 0 s
+   sim_type       = 0            !! 0=>"initial",1=>"restart",2=>"branch"
+   sim_duration   = -2232         !! >=0 : simulation steps; <0 : days for simulation
+   nhtfrq         = -1          !! <0  : hours for average,=0 : monthly
+   restart_frq    = -2232           !! >0  : simulation steps; =0 : monthly ;<0 : days for simulation
+   beps_domain        = "$inputdata/boundary/beps_domain.nc"
+   meteo_input        = 1        !! <0 : daily input, >=0 : hourly input
+   meteo_path         = "$inputdata/meteo/"
+   meteo_flnm_prefix  = "beps_meteo_0.1_"
+   meteo_site_flnm_prefix  = "Site_meteo_2010_2015_hourly"
+   surface_data_path  = "$inputdata/boundary/beps_surface_data.nc"
+   beps_yrdata_path   = "$inputdata/boundary/beps_yrdata.nc"
+   n_site             = 2
+   beps_site_path     = "$inputdata/beps_site/"
+   site_bound_prefix  = "Site_boundary_data"
+   lai_input          = 1        !! <0 : lai is simulated, >=0 : lai as forcing
+   beps_lai_path      = "$inputdata/lai/"
+   beps_lai_prefix    = "beps_lai_"
+   beps_lai_site_prefix = "Site_lai_2010_2015_daily"
+   beps_Vcmax_path    = "$inputdata/Vcmax/"
+   beps_para_dir      = "$inputdata/para/beps_Para.nc"
+   beps_Vcmax_site_path = "$inputdata/beps_site/"
+   beps_cpools        = "$inputdata/cpools/beps_Cpool.nc"
+   beps_out_dir       = "$outdir/"
+   beps_rst_dir       = "$outdir/"
+&end
+
+

@@ -1,2 +1,5 @@
-def hello() -> str:
-    return "Hello from cpptree!"
+"""cpptree - A robust C Preprocessor AST parser and evaluator for Fortran."""
+
+from . import examples
+
+__all__ = ['examples']
