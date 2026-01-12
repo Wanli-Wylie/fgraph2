@@ -1,0 +1,28 @@
+[project]
+name = "cpptree"
+version = "0.1.0"
+description = "A robust C Preprocessor AST parser and evaluator based on tree-sitter. detailed analysis and partial evaluation of preprocessor directives for Fortran."
+readme = "README.md"
+authors = [
+    { name = "Wanli-Wylie", email = "zhang.wl.earth@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "tree-sitter",
+    "tree-sitter-fortran",
+    "pydantic",
+    "fgraphutils"
+]
+
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+[build-system]
+requires = ["uv_build>=0.9.24,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+fgraphutils = { workspace = true }

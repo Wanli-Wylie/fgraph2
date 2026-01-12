@@ -1,6 +1,13 @@
 from pydantic import BaseModel
 
 class BaseFile(BaseModel):
-    path: str
+    filename: str
     content: str
-    hash: str
+    
+class Span(BaseModel):
+    offset: int
+    length: int
+    
+class Location(BaseModel):
+    file: str
+    span: Span
