@@ -240,6 +240,7 @@ class PreprocessorVisitor(NodeVisitor):
             identifier_node = _find_child_by_type(node, "identifier")
             if identifier_node is None:
                 raise ValueError(f"preproc_undef missing identifier: {raw}")
+
             name = _get_node_text(identifier_node, self.source_code)
         
         return UnDefNode(
