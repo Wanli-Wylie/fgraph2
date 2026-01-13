@@ -1,187 +1,130 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Union, Optional
 from pydantic import BaseModel, ConfigDict, Field
+from fgraphutils import CodeSnippet
 
+# ==========================================
+# 1. 基础节点
+# ==========================================
 
-class FortranScope(BaseModel):
-    """
-    Base for all scope/visibility nodes.
-    """
+class FortranNode(BaseModel):
+    """所有节点的基类"""
     kind: str
+    snippet: CodeSnippet
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+class SpecCodeBlock(FortranNode):
+    """
+    规范部代码块
+    """
+    kind: Literal["spec_code_block"] = "spec_code_block"
 
-# -------------------------
-# Leaf-ish expression scope
-# -------------------------
-
-class ImpliedDoScope(FortranScope):
-    """implied-DO index var scope (list scope), can be nested."""
-    kind: Literal["implied_do_scope"] = "implied_do_scope"
-    children: list[ImpliedDoScope] = Field(default_factory=list)
-
-
-class StatementFunctionScope(FortranScope):
-    """statement function dummy-arg scope (one statement)"""
-    kind: Literal["statement_function_scope"] = "statement_function_scope"
-    children: list[ImpliedDoScope] = Field(default_factory=list)
+class ExecCodeBlock(FortranNode):
+    """
+    可执行代码块
+    """
+    kind: Literal["exec_code_block"] = "exec_code_block"
 
 
-# -------------------------
-# Construct/statement scopes
-# -------------------------
+# ==========================================
+# 3. 递归容器定义 (关键：显式控制流)
+# ==========================================
 
-class ForallScope(FortranScope):
-    """FORALL statement/construct scope"""
-    kind: Literal["forall_scope"] = "forall_scope"
-    # FORALL body can contain nested FORALL (and expressions => implied-DO).
-    children: list[ForallScope | ImpliedDoScope] = Field(default_factory=list)
+# 预声明，解决 Pydantic 递归引用
+class ExecutionPart(BaseModel):
+    """可执行部分的容器，代表一个语句序列"""
+    content: list[ExecCodeBlock] = Field(default_factory=list)
 
+# --- 3.1 控制流构造 (Constructs) ---
+# 它们决定了代码的“形状”和“路径”，是承载作用域的骨架
 
-class AssociateScope(FortranScope):
-    """ASSOCIATE ... END ASSOCIATE"""
-    kind: Literal["associate_scope"] = "associate_scope"
-    # Associate block is executable statements/constructs => may nest these constructs.
-    children: list[
-        AssociateScope
-        | SelectTypeGuardScope
-        | ForallScope
-        | ImpliedDoScope
-    ] = Field(default_factory=list)
+# ==========================================
+# 4. 聚合类型 (Union)
+# ==========================================
 
+SpecChild = Union[
+    SpecCodeBlock,              # 声明语句
+    "InterfaceBlockScope"     # 接口块容器
+]
 
-class SelectTypeGuardScope(FortranScope):
-    """each TYPE IS / CLASS IS / CLASS DEFAULT block"""
-    kind: Literal["select_type_guard_scope"] = "select_type_guard_scope"
-    # Each guard block is executable statements/constructs => may nest these constructs.
-    children: list[
-        AssociateScope
-        | SelectTypeGuardScope
-        | ForallScope
-        | ImpliedDoScope
-    ] = Field(default_factory=list)
+class RenameRule(BaseModel):
+    local_name: str
+    use_name: str
 
+class UseStatement(FortranNode): # 建议继承 FortranNode 以保留位置信息
+    kind: Literal["use_statement"] = "use_statement"
+    module_name: str
+    # nature: Literal["intrinsic", "non_intrinsic", "unspecified"] = "unspecified" # 可选：F03特性
+    only_list: Optional[list[str]] = None  # None 表示导入所有；[] 表示不导入符号(仅为了依赖)
+    renames: list[RenameRule] = Field(default_factory=list)
 
-# -------------------------
-# F2003 scoping units
-# -------------------------
+class ImportStatement(FortranNode):
+    kind: Literal["import_statement"] = "import_statement"
+    names: Optional[list[str]] = None # None 表示 IMPORT :: ALL (F2018), F03 通常有列表
 
-class DerivedTypeDefinitionScope(FortranScope):
-    """TYPE ... END TYPE (derived type definition scope)"""
-    kind: Literal["derived_type_definition_scope"] = "derived_type_definition_scope"
-    # No executable constructs; but initialization/bounds expressions may contain implied-DO.
-    children: list[ImpliedDoScope] = Field(default_factory=list)
+# ==========================================
+# 5. 顶层结构 (Subprograms / Modules)
+# ==========================================
 
-
-class InterfaceBodyScope(FortranScope):
-    """interface body: SUBROUTINE/FUNCTION ... END within INTERFACE"""
+# --- 接口结构 ---
+class InterfaceBodyScope(FortranNode):
     kind: Literal["interface_body_scope"] = "interface_body_scope"
-    # Specification-only, but may still contain nested derived-type definitions / interface bodies,
-    # and implied-DO inside specification expressions.
-    children: list[
-        DerivedTypeDefinitionScope
-        | InterfaceBodyScope
-        | ImpliedDoScope
-    ] = Field(default_factory=list)
+    # NOTE: IMPORT statements
+    import_statements: Optional[list[ImportStatement]] = Field(default_factory=list)
+    spec_part: list[SpecChild] = Field(default_factory=list)
 
+class InterfaceBlockScope(FortranNode):
+    """接口块是容器，持有 Interface Bodies"""
+    kind: Literal["interface_block_scope"] = "interface_block_scope"
 
-class ModuleSubprogramScope(FortranScope):
-    """module procedure definition (after MODULE CONTAINS)"""
-    kind: Literal["module_subprogram_scope"] = "module_subprogram_scope"
-    children: list[
-        DerivedTypeDefinitionScope
-        | InterfaceBodyScope
-        | StatementFunctionScope
-        | InternalSubprogramScope
-        | AssociateScope
-        | SelectTypeGuardScope
-        | ForallScope
-        | ImpliedDoScope
-    ] = Field(default_factory=list)
+    module_procedures: Optional[SpecCodeBlock] = None
+    bodies: list[InterfaceBodyScope] = Field(default_factory=list)
 
-
-class InternalSubprogramScope(FortranScope):
-    """internal procedure (after CONTAINS)"""
+# --- 程序单元结构 ---
+class InternalSubprogramScope(FortranNode):
     kind: Literal["internal_subprogram_scope"] = "internal_subprogram_scope"
-    # NOTE: internal subprograms cannot contain other internal subprograms.
-    children: list[
-        DerivedTypeDefinitionScope
-        | InterfaceBodyScope
-        | StatementFunctionScope
-        | AssociateScope
-        | SelectTypeGuardScope
-        | ForallScope
-        | ImpliedDoScope
-    ] = Field(default_factory=list)
+    # NOTE: Use statements
+    use_statements: Optional[list[UseStatement]] = Field(default_factory=list)
+    spec_part: list[SpecChild] = Field(default_factory=list)
+    exec_part: ExecutionPart = Field(default_factory=ExecutionPart)
 
+class ModuleSubprogramScope(FortranNode):
+    kind: Literal["module_subprogram_scope"] = "module_subprogram_scope"
+    # NOTE: Use statements
+    use_statements: Optional[list[UseStatement]] = Field(default_factory=list)
+    spec_part: list[SpecChild] = Field(default_factory=list)
+    exec_part: ExecutionPart = Field(default_factory=ExecutionPart)
+    internal_subprograms: list[InternalSubprogramScope] = Field(default_factory=list)
 
-class ExternalSubprogramScope(FortranScope):
-    """external SUBROUTINE/FUNCTION (top-level)"""
-    kind: Literal["external_subprogram_scope"] = "external_subprogram_scope"
-    children: list[
-        DerivedTypeDefinitionScope
-        | InterfaceBodyScope
-        | StatementFunctionScope
-        | InternalSubprogramScope
-        | AssociateScope
-        | SelectTypeGuardScope
-        | ForallScope
-        | ImpliedDoScope
-    ] = Field(default_factory=list)
-
-
-class MainProgramScope(FortranScope):
-    """PROGRAM ... END PROGRAM"""
-    kind: Literal["main_program_scope"] = "main_program_scope"
-    children: list[
-        DerivedTypeDefinitionScope
-        | InterfaceBodyScope
-        | StatementFunctionScope
-        | InternalSubprogramScope
-        | AssociateScope
-        | SelectTypeGuardScope
-        | ForallScope
-        | ImpliedDoScope
-    ] = Field(default_factory=list)
-
-
-class ModuleScope(FortranScope):
-    """MODULE ... END MODULE"""
+class ModuleScope(FortranNode):
     kind: Literal["module_scope"] = "module_scope"
-    # No executable statements at module scope; no statement functions in module spec part.
-    children: list[
-        DerivedTypeDefinitionScope
-        | InterfaceBodyScope
-        | ModuleSubprogramScope
-        | ImpliedDoScope
-    ] = Field(default_factory=list)
+    # NOTE: Use statements
+    use_statements: Optional[list[UseStatement]] = Field(default_factory=list)
+    spec_part: list[SpecChild] = Field(default_factory=list)
+    module_subprograms: list[ModuleSubprogramScope] = Field(default_factory=list)
 
+class MainProgramScope(FortranNode):
+    kind: Literal["main_program_scope"] = "main_program_scope"
+    # NOTE: Use statements
+    use_statements: Optional[list[UseStatement]] = Field(default_factory=list)
+    spec_part: list[SpecChild] = Field(default_factory=list)
+    exec_part: ExecutionPart = Field(default_factory=ExecutionPart)
+    internal_subprograms: list[InternalSubprogramScope] = Field(default_factory=list)
 
-class BlockDataScope(FortranScope):
-    """BLOCK DATA ... END BLOCK DATA"""
+class ExternalSubprogramScope(FortranNode):
+    kind: Literal["external_subprogram_scope"] = "external_subprogram_scope"
+    # NOTE: Use statements
+    use_statements: Optional[list[UseStatement]] = Field(default_factory=list)
+    spec_part: list[SpecChild] = Field(default_factory=list)
+    exec_part: ExecutionPart = Field(default_factory=ExecutionPart)
+    internal_subprograms: list[InternalSubprogramScope] = Field(default_factory=list)
+    
+class BlockDataScope(FortranNode):
     kind: Literal["block_data_scope"] = "block_data_scope"
-    # No executable statements; interface blocks not allowed; derived-type definitions are allowed.
-    children: list[
-        DerivedTypeDefinitionScope
-        | ImpliedDoScope
-    ] = Field(default_factory=list)
+    spec_part: list[SpecChild] = Field(default_factory=list)
 
-
-# ---- resolve forward refs (important for recursive children) ----
-for _m in [
-    ImpliedDoScope,
-    StatementFunctionScope,
-    ForallScope,
-    AssociateScope,
-    SelectTypeGuardScope,
-    DerivedTypeDefinitionScope,
-    InterfaceBodyScope,
-    ModuleSubprogramScope,
-    InternalSubprogramScope,
-    ExternalSubprogramScope,
-    MainProgramScope,
-    ModuleScope,
-    BlockDataScope,
-]:
-    _m.model_rebuild()
+# 更新 Pydantic 的引用
+ExecutionPart.model_rebuild()
+InterfaceBodyScope.model_rebuild()
+InterfaceBlockScope.model_rebuild()

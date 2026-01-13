@@ -27,7 +27,7 @@
 
 构建程序的静态作用域骨架，确立“名称”的查找路径与可见性规则，通过图结构描述程序中的空间层级与模块间的依赖关系。 
 
-- 识别并构建所有的作用域单元（Scoping Units），涵盖Program、Module、Submodule、Subroutine、Function、Block Construct以及Interface Body等层次化结构。
+- 识别并构建所有的作用域单元（Scoping Units），涵盖Program、Module、Submodule、Subroutine、Function以及Interface Body等层次化结构。
 
 - 建立作用域之间的层级关系（Parent-Child），处理Host Association（宿主关联），确立内部过程对宿主变量的访问权限。 解析模块间的引用关系，
 
@@ -45,7 +45,7 @@
 
 - 处理Parameterized Derived Types (PDT) 的模板定义，管理Kind和Len类型参数的约束。 
 
-- 基于fscopinggraph输出的Parameter Map解决类型定义中的常量依赖问题（如类型Kind/Len值依赖于某个Parameter常量）。
+- 基于fscoping输出的Parameter Map解决类型定义中的常量依赖问题（如类型Kind/Len值依赖于某个Parameter常量）。
 
 - 输出类型图（Type Graph），包含全部唯一的类型规范（TypeSpec）。
 
