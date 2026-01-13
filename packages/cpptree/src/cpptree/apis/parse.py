@@ -1,14 +1,14 @@
-from cpptree.core.parse import _process_node, _merge_text_blocks, _node_to_span
-from cpptree.models import FileRoot, PreprocessorNode
+from cpptree.core.parse import process_tree_stream, _node_to_span
+from cpptree.models import FileRoot
 from tree_sitter import Language, Parser
 import tree_sitter_fortran
 
 def parse(source_code: str, filepath: str = "") -> FileRoot:
     """Parse C preprocessor directives from source code.
     
-    This function walks the tree-sitter generated syntax tree, processes
-    nodes starting with preproc_*, and merges other nodes into TextBlocks.
-    Conditional structures are handled with stack-based processing.
+    This function uses a Visitor pattern with generator-based stream processing
+    to walk the tree-sitter generated syntax tree, process nodes starting with
+    preproc_*, and merge other nodes into TextBlocks.
     
     Args:
         source_code: The source code to parse
@@ -17,8 +17,6 @@ def parse(source_code: str, filepath: str = "") -> FileRoot:
     Returns:
         A FileRoot containing the parsed structure
     """
-    
-    
     # Initialize parser
     language = Language(tree_sitter_fortran.language())
     parser = Parser(language)
@@ -27,27 +25,8 @@ def parse(source_code: str, filepath: str = "") -> FileRoot:
     source_bytes = source_code.encode('utf-8')
     tree = parser.parse(source_bytes)
     
-    # Process root node's children
-    items: list[PreprocessorNode] = []
-    text_accumulator: list[tuple[int, int]] = []
-    
-    for child in tree.root_node.children:
-        processed = _process_node(child, source_bytes, filepath, text_accumulator)
-        if processed:
-            # If we have accumulated text, create a text block first
-            if text_accumulator:
-                text_block = _merge_text_blocks(text_accumulator, source_bytes, filepath)
-                if text_block:
-                    items.append(text_block)
-                text_accumulator = []
-            
-            items.extend(processed)
-    
-    # Handle any remaining text
-    if text_accumulator:
-        text_block = _merge_text_blocks(text_accumulator, source_bytes, filepath)
-        if text_block:
-            items.append(text_block)
+    # Process tree using generator-based stream processing
+    items = list(process_tree_stream(tree.root_node, source_bytes, filepath))
     
     # Create FileRoot
     root_span = _node_to_span(tree.root_node, filepath)
