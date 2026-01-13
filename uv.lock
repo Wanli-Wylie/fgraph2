@@ -11,7 +11,8 @@ members = [
     "cpptree",
     "fgraph2",
     "fgraphutils",
-    "fscoping",
+    "fstructure",
+    "fsymtab",
 ]
 
 [[package]]
@@ -248,9 +249,14 @@ dependencies = [
 requires-dist = [{ name = "pydantic" }]
 
 [[package]]
-name = "fscoping"
+name = "fstructure"
 version = "0.1.0"
-source = { editable = "packages/fscoping" }
+source = { editable = "packages/fstructure" }
+
+[[package]]
+name = "fsymtab"
+version = "0.1.0"
+source = { editable = "packages/fsymtab" }
 
 [[package]]
 name = "iniconfig"
